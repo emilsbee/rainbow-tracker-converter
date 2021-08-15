@@ -1,1 +1,4 @@
 node_modules/
+DataToConvert.json
+ConvertedData.json
+.idea/
