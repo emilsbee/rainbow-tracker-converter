@@ -9,7 +9,12 @@ import {
     OldActivitySetting, OldCategory,
     OldCategorySetting, OldNote, OldWeek
 } from "./types";
-import {convertCategoryTypes, getCategorySettingsTable, saveNewCategoryTypes} from "./categorySettings";
+import {
+    convertCategoryTypes,
+    findMissingCategoryAndActivityTypes,
+    getCategorySettingsTable,
+    saveNewCategoryTypes
+} from "./categorySettings";
 import {convertActivityTypes, getActivitySettingsTable, saveNewActivityTypes} from "./activitySettings";
 import {convertWeeks, saveNewWeeks} from "./weeks";
 import {convertCategories, saveNewCategories} from "./categories";
@@ -20,7 +25,33 @@ require('dotenv').config()
 /**
  * Constants.
  */
-export const USER_ID = "653e386c-c87e-44e7-8589-09cb140c2377"
+export let USER_ID = ""
+
+if (process.argv.length === 3) {
+    USER_ID = process.argv[2]
+} else {
+    throw new Error("You must provide arguments userid.")
+}
+export const replacementTypes = {
+    categoryTypes: [{
+        badCategoryid: "-M8juLkKKWE7GmitaWD2",
+        goodCategoryid: "-M8tuD433a28Qm8Cj7ft"
+    }],
+    activityTypes: [
+        {
+            badActivityid: "-M8juLkKKWE7GmitaWD3",
+            goodActivityid: "-M8tuD433a28Qm8Cj7fu"
+        },
+        {
+            badActivityid: "-M8juLkL1Nw0-Snc1iVO",
+            goodActivityid: "-M8tuD433a28Qm8Cj7fx"
+        },
+        {
+            badActivityid: "-M8juLkKKWE7GmitaWD1",
+            goodActivityid: "-M8tuD433a28Qm8Cj7fw"
+        }
+    ]
+}
 const INPUT_FILE_NAME = "DataToConvert.json"
 export const WEEK_DAY_ARR = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -61,10 +92,10 @@ fs.readFile(INPUT_FILE_NAME, async (err, data) => {
     /**
      * Categories
      */
-    await saveNewCategories(convertCategories(parsedData.categories, categorySettingsTable, activitySettingsTable))
+    await saveNewCategories(convertCategories(parsedData.categories, categorySettingsTable, activitySettingsTable, parsedData.weekYearTable))
 
     /**
      * Notes
      */
-    await saveNewNotes(convertNotes(parsedData.notes))
+    await saveNewNotes(convertNotes(parsedData.notes, parsedData.weekYearTable))
 })

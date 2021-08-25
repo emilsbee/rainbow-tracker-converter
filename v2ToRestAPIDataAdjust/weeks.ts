@@ -4,6 +4,7 @@ import {PoolClient} from "pg";
 // Internal imports
 import {NewWeek, OldWeek} from "./types";
 import {pool, USER_ID} from "./index";
+import {DateTime} from "luxon";
 
 /**
  * Saves new weeks to database.
@@ -44,12 +45,16 @@ export const convertWeeks = (oldWeeks: OldWeek): NewWeek[] => {
         let weekNr = parseInt(weekDate.split("_")[0])
         let weekYear = parseInt(weekDate.split("_")[1])
 
-        newWeeks.push({
-            weekid: oldWeeks[weekDate],
-            userid: USER_ID,
-            weekNr,
-            weekYear
-        })
+        let validWeek = DateTime.fromObject({weekNumber: weekNr, weekYear}).toISODate()
+
+        if (validWeek) {
+            newWeeks.push({
+                weekid: oldWeeks[weekDate],
+                userid: USER_ID,
+                weekNr,
+                weekYear
+            })
+        }
     })
 
     return  newWeeks

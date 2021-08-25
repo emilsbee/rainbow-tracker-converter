@@ -3,7 +3,7 @@ import {v4 as uuidv4} from "uuid";
 import {PoolClient} from "pg";
 
 // Internal imports
-import {CategorySettingsTable, NewCategoryType, OldCategorySetting} from "./types";
+import {ActivitySettingsTable, CategorySettingsTable, NewCategoryType, OldCategory, OldCategorySetting} from "./types";
 import {pool, USER_ID} from "./index";
 
 /**
@@ -80,4 +80,39 @@ export const convertCategoryTypes = (oldCategorySettings: OldCategorySetting, ca
     })
 
     return newTypes
+}
+
+/**
+ *  Iterates through the categories and using category and activity type tables
+ *  finds which categories reference non-existing category/activity types.
+ */
+export const findMissingCategoryAndActivityTypes = (
+    categories: OldCategory,
+    categorySettingsTable: CategorySettingsTable,
+    activitySettingsTable: ActivitySettingsTable
+): {categoryTypes: Set<string>, activityTypes: Set<string>} => {
+    const fakeCategoryids: string[] = []
+    const fakeActivityids: string[] = []
+
+    Object.keys(categories).forEach(weekid => {
+        categories[weekid].forEach(category => {
+            if (category.categoryid.length !== 0) {
+                const categorySettingsTableEntry = categorySettingsTable.find(entry => entry.oldCategoryid === category.categoryid)
+
+                if (!categorySettingsTableEntry) {
+                    fakeCategoryids.push(category.categoryid)
+                }
+            }
+
+            if (category.activityid.length !== 0) {
+                const activitySettingsTableEntry = activitySettingsTable.find(entry => entry.oldActivityid === category.activityid)
+
+                if (!activitySettingsTableEntry) {
+                    fakeActivityids.push(category.activityid)
+                }
+            }
+        })
+    })
+
+    return {categoryTypes: new Set(fakeCategoryids), activityTypes: new Set(fakeActivityids)}
 }

@@ -2,8 +2,9 @@
 import {PoolClient} from "pg";
 
 // Internal imports
-import {ActivitySettingsTable, CategorySettingsTable, NewCategory, OldCategory} from "./types";
-import {pool, USER_ID, WEEK_DAY_ARR} from "./index";
+import {ActivitySettingsTable, CategorySettingsTable, NewCategory, OldCategory, OldWeek} from "./types";
+import {pool, replacementTypes, USER_ID, WEEK_DAY_ARR} from "./index";
+import {DateTime} from "luxon";
 
 /**
  * Saves new categories to database.
@@ -16,11 +17,11 @@ export const saveNewCategories = async (newCategories: NewCategory[]):Promise<vo
         // Begin transaction
         await client.query("BEGIN")
 
-        const createCategoryQuery:string = 'INSERT INTO category(weekid, "weekDay", "categoryPosition", userid, categoryid, activityid) VALUES($1, $2, $3, $4, $5, $6);'
+        const createCategoryQuery:string = 'INSERT INTO category(weekid, "weekDay", "categoryPosition", userid, categoryid, activityid, "weekDayDate") VALUES($1, $2, $3, $4, $5, $6, $7);'
 
         for (let i = 0; i < newCategories.length; i++) {
             let category = newCategories[i]
-            let values = [category.weekid, category.weekDay, category.categoryPosition, USER_ID, category.categoryid, category.activityid]
+            let values = [category.weekid, category.weekDay, category.categoryPosition, USER_ID, category.categoryid, category.activityid, category.weekDayDate]
             await client.query(createCategoryQuery, values)
         }
 
@@ -40,7 +41,7 @@ export const saveNewCategories = async (newCategories: NewCategory[]):Promise<vo
  * @param categorySettingsTable to use for categoryid conversion.
  * @param activitySettingsTable to use for activityid conversion.
  */
-export const convertCategories = (oldCategories: OldCategory, categorySettingsTable: CategorySettingsTable, activitySettingsTable: ActivitySettingsTable):NewCategory[] => {
+export const convertCategories = (oldCategories: OldCategory, categorySettingsTable: CategorySettingsTable, activitySettingsTable: ActivitySettingsTable, weekYearTable: OldWeek):NewCategory[] => {
     let newCategories: NewCategory[] = []
 
     Object.keys(oldCategories).forEach(weekid => {
@@ -56,7 +57,21 @@ export const convertCategories = (oldCategories: OldCategory, categorySettingsTa
                 const categorySettingsTableEntry = categorySettingsTable.find(entry => entry.oldCategoryid === oldCategory.categoryid)
 
                 if (!categorySettingsTableEntry) {
-                    throw new Error("Category setting " + oldCategory.categoryid + " does not exist in the category settings table " + categorySettingsTable)
+                    // Checks whether the current category is in replacement type table
+                    let isCategoryInReplacementTable = replacementTypes.categoryTypes.find(categoryType => categoryType.badCategoryid === oldCategory.categoryid)
+
+                    if (isCategoryInReplacementTable) {
+                        let categoryReplacementId = isCategoryInReplacementTable.goodCategoryid
+                        let newCategType = categorySettingsTable.find(entry => entry.oldCategoryid === categoryReplacementId)
+
+                        if (newCategType) {
+                            categoryid = newCategType.newCategoryid
+                        } else {
+                            throw new Error("Category replacement" + categoryReplacementId  + "does not exist in the categorySettingsTable.")
+                        }
+                    } else {
+                        throw new Error("Category " + oldCategory.categoryid + " does not exist in the category settings table or replacement categories." + categorySettingsTable)
+                    }
                 } else {
                     categoryid = categorySettingsTableEntry.newCategoryid
                 }
@@ -71,7 +86,21 @@ export const convertCategories = (oldCategories: OldCategory, categorySettingsTa
                 const activitySettingsTableEntry = activitySettingsTable.find(entry => entry.oldActivityid === oldCategory.activityid)
 
                 if (!activitySettingsTableEntry) {
-                    throw new Error("Activity setting " + oldCategory.activityid + " does not exist in the activity settings table " + activitySettingsTable)
+                    // Checks whether the current activity is in replacement type table
+                    let isInReplacementTable = replacementTypes.activityTypes.find(activityType => activityType.badActivityid === oldCategory.activityid)
+
+                    if (isInReplacementTable) {
+                        let replacementId = isInReplacementTable.goodActivityid
+                        let newActivType = activitySettingsTable.find(entry => entry.oldActivityid === replacementId)
+
+                        if (newActivType) {
+                            activityid = newActivType.newActivityid
+                        } else {
+                            throw new Error("Activity replacement" + replacementId  + "does not exist in the activitySettingsTable.")
+                        }
+                    } else {
+                        throw new Error("Activity " + oldCategory.activityid + " does not exist in the activity settings table or replacement activities." + activitySettingsTable)
+                    }
                 } else {
                     activityid = activitySettingsTableEntry.newActivityid
                 }
@@ -84,14 +113,27 @@ export const convertCategories = (oldCategories: OldCategory, categorySettingsTa
                 throw new Error("Week day conversion gone bad for categories. The day: " + oldCategory.day)
             }
 
-            newCategories.push({
-                weekid,
-                weekDay,
-                categoryPosition: oldCategory.position,
-                userid: USER_ID,
-                categoryid,
-                activityid
+            // Week day date
+            let weekDayDate: string | null = null
+            Object.keys(weekYearTable).forEach(week_year => {
+                if (weekYearTable[week_year] === weekid) {
+                    let weekNr = week_year.split("_")[0]
+                    let year = week_year.split("_")[1]
+                    weekDayDate = DateTime.fromISO(`${year}-W${String(weekNr).padStart(2, '0')}-${weekDay+1}`).toISODate()
+                }
             })
+
+            if (weekDayDate) {
+                newCategories.push({
+                    weekid,
+                    weekDay,
+                    categoryPosition: oldCategory.position,
+                    userid: USER_ID,
+                    categoryid,
+                    activityid,
+                    weekDayDate
+                })
+            }
         })
     })
 

@@ -76,7 +76,8 @@ export type NewCategory = {
     categoryPosition: number,
     userid: string,
     categoryid: string | null,
-    activityid: string | null
+    activityid: string | null,
+    weekDayDate: string
 }
 
 export type NewNote = {
@@ -85,7 +86,8 @@ export type NewNote = {
     notePosition: number,
     stackid: string,
     userid: string,
-    note: string
+    note: string,
+    weekDayDate: string
 }
 
 /**
